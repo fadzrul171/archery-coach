@@ -458,6 +458,60 @@
     }
 
     /* ===============================
+       MOBILE MENU
+    =============================== */
+
+    .mobile-menu-btn {
+      display: none;
+    }
+
+    .mobile-menu-backdrop {
+      display: none;
+    }
+
+    @media(max-width: 800px) {
+      .mobile-menu-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 7px;
+        white-space: nowrap;
+      }
+
+      .mobile-menu-backdrop {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, .35);
+        z-index: 998;
+      }
+
+      .mobile-menu-backdrop.show {
+        display: block;
+      }
+
+      .sidebar {
+        display: block;
+        position: fixed;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        z-index: 999;
+        transform: translateX(-110%);
+        transition: transform .2s ease;
+        box-shadow: 8px 0 25px rgba(0, 0, 0, .15);
+        overflow-y: auto;
+      }
+
+      .sidebar.mobile-open {
+        transform: translateX(0);
+      }
+
+      .content {
+        width: 100%;
+      }
+    }
+
+    /* ===============================
        RESPONSIVE
     =============================== */
 
@@ -468,10 +522,6 @@
     }
 
     @media(max-width: 800px) {
-      .sidebar {
-        display: none;
-      }
-
       .content {
         padding: 15px;
       }
@@ -710,6 +760,13 @@
 =========================================== -->
 
 <div
+  id="mobileMenuBackdrop"
+  class="mobile-menu-backdrop"
+  onclick="closeMobileMenu()"
+></div>
+
+
+<div
   id="appView"
   class="hidden"
 >
@@ -724,28 +781,28 @@
 
       <div
         class="nav-item"
-        onclick="loadDashboard()"
+        onclick="closeMobileMenu(); loadDashboard()"
       >
         Dashboard
       </div>
 
       <div
         class="nav-item"
-        onclick="editProfileModal()"
+        onclick="closeMobileMenu(); editProfileModal()"
       >
         Edit Profile
       </div>
 
       <div
         class="nav-item"
-        onclick="changePasswordModal()"
+        onclick="closeMobileMenu(); changePasswordModal()"
       >
         Tukar Password
       </div>
 
       <div
         class="nav-item"
-        onclick="logout()"
+        onclick="closeMobileMenu(); logout()"
       >
         Log Keluar
       </div>
@@ -771,13 +828,25 @@
         </div>
 
 
-        <button
-          type="button"
-          class="btn btn-light"
-          onclick="logout()"
-        >
-          Log Keluar
-        </button>
+        <div style="display:flex; gap:8px; align-items:center;">
+
+          <button
+            type="button"
+            class="btn btn-light mobile-menu-btn"
+            onclick="toggleMobileMenu()"
+          >
+            ☰ Menu
+          </button>
+
+          <button
+            type="button"
+            class="btn btn-light"
+            onclick="logout()"
+          >
+            Log Keluar
+          </button>
+
+        </div>
 
       </div>
 
@@ -829,6 +898,41 @@
 
 
 <script>
+
+/* ==========================================
+   MOBILE MENU
+========================================== */
+
+function toggleMobileMenu() {
+
+  var sidebar = document.querySelector('.sidebar');
+  var backdrop = document.getElementById('mobileMenuBackdrop');
+
+  if (!sidebar || !backdrop) {
+    return;
+  }
+
+  var isOpen = sidebar.classList.toggle('mobile-open');
+  backdrop.classList.toggle('show', isOpen);
+
+}
+
+
+function closeMobileMenu() {
+
+  var sidebar = document.querySelector('.sidebar');
+  var backdrop = document.getElementById('mobileMenuBackdrop');
+
+  if (sidebar) {
+    sidebar.classList.remove('mobile-open');
+  }
+
+  if (backdrop) {
+    backdrop.classList.remove('show');
+  }
+
+}
+
 
 /* ==========================================
    GLOBAL
