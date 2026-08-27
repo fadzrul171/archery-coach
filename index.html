@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+
 <html>
 
 <head>
@@ -727,6 +727,13 @@
         onclick="loadDashboard()"
       >
         Dashboard
+      </div>
+
+      <div
+        class="nav-item"
+        onclick="editProfileModal()"
+      >
+        Edit Profile
       </div>
 
       <div
@@ -3567,6 +3574,141 @@ function changePasswordModal() {
 
   );
 
+}
+
+
+function editProfileModal() {
+
+  if (!currentUser) {
+    return;
+  }
+
+  openModal(
+
+    '<h2>Edit Profile</h2>' +
+
+    '<label>Nama Penuh</label>' +
+    '<input ' +
+    'id="profileFullName" ' +
+    'type="text" ' +
+    'value="' + escapeHtmlAttr_(currentUser.fullName || '') + '" ' +
+    'placeholder="Nama penuh">' +
+
+    '<label>No. Telefon</label>' +
+    '<input ' +
+    'id="profilePhone" ' +
+    'type="tel" ' +
+    'value="' + escapeHtmlAttr_(currentUser.phone || '') + '" ' +
+    'placeholder="Contoh: 0123456789">' +
+
+    '<label>Email</label>' +
+    '<input ' +
+    'id="profileEmail" ' +
+    'type="email" ' +
+    'value="' + escapeHtmlAttr_(currentUser.email || '') + '" ' +
+    'placeholder="nama@email.com">' +
+
+    '<div class="modal-actions">' +
+
+    '<button ' +
+    'type="button" ' +
+    'class="btn btn-primary" ' +
+    'onclick="saveProfile()">' +
+    'Simpan Perubahan' +
+    '</button>' +
+
+    '<button ' +
+    'type="button" ' +
+    'class="btn btn-light" ' +
+    'onclick="closeModal()">' +
+    'Batal' +
+    '</button>' +
+
+    '</div>'
+
+  );
+
+}
+
+
+function escapeHtmlAttr_(value) {
+
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+
+async function saveProfile() {
+
+  var fullName =
+    document.getElementById('profileFullName').value.trim();
+
+  var phone =
+    document.getElementById('profilePhone').value.trim();
+
+  var email =
+    document.getElementById('profileEmail').value.trim();
+
+  if (!fullName) {
+    alert('Sila masukkan nama penuh.');
+    return;
+  }
+
+  if (!phone) {
+    alert('Sila masukkan no. telefon.');
+    return;
+  }
+
+  if (!email) {
+    alert('Sila masukkan email.');
+    return;
+  }
+
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    alert('Format email tidak sah.');
+    return;
+  }
+
+  try {
+
+    showLoading('Menyimpan profile...');
+
+    var result = await callApi(
+      'updateProfile',
+      {
+        fullName: fullName,
+        phone: phone,
+        email: email
+      }
+    );
+
+    hideLoading();
+
+    if (result && result.user) {
+      currentUser = result.user;
+    } else {
+      currentUser.fullName = fullName;
+      currentUser.phone = phone;
+      currentUser.email = email;
+    }
+
+    var welcome = document.getElementById('welcomeText');
+    if (welcome) {
+      welcome.textContent = 'Hai, ' + currentUser.fullName + ' 👋';
+    }
+
+    alert('Profile berjaya dikemaskini.');
+    closeModal();
+
+  } catch (e) {
+
+    hideLoading();
+    alert(e && e.message ? e.message : 'Profile gagal dikemaskini.');
+
+  }
 }
 
 
