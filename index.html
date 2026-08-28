@@ -4762,7 +4762,523 @@ window.addEventListener(
 
   }
 );
+// =====================================================
+// V30 - MANUAL ROYALTY UI
+// =====================================================
 
+function generateInvoiceModal() {
+
+  var parents =
+    (window.adminData && adminData.parents) || [];
+
+  var options =
+    '<option value="">Pilih parent</option>';
+
+  parents.forEach(function(parent) {
+
+    options +=
+      '<option value="' +
+      escapeHtml(parent.id) +
+      '">' +
+      escapeHtml(
+        parent.fullName || '-'
+      ) +
+      ' — ' +
+      escapeHtml(
+        parent.phone ||
+        parent.email ||
+        ''
+      ) +
+      '</option>';
+
+  });
+
+
+  openModal(
+
+    '<h2>Generate Invoice</h2>' +
+
+    '<label>Hantar Kepada</label>' +
+
+    '<select id="invoiceRecipientType" ' +
+      'onchange="toggleInvoiceRecipient()">' +
+
+      '<option value="SINGLE">' +
+        'Single Parent' +
+      '</option>' +
+
+      '<option value="ALL">' +
+        'All Parents (Active sahaja)' +
+      '</option>' +
+
+    '</select>' +
+
+
+    '<div id="invoiceParentWrap">' +
+
+      '<label>Parent</label>' +
+
+      '<select id="invoiceParentId" ' +
+        'onchange="loadInvoiceStudentsForParent()">' +
+
+        options +
+
+      '</select>' +
+
+
+      '<label>Pelajar</label>' +
+
+      '<select id="invoiceStudentId">' +
+
+        '<option value="">' +
+          'Pilih pelajar' +
+        '</option>' +
+
+      '</select>' +
+
+      '<div class="muted" style="margin-top:6px;">' +
+
+        'Invoice akan dihantar atas nama pelajar yang dipilih.' +
+
+      '</div>' +
+
+    '</div>' +
+
+
+    '<label>Tajuk Invoice</label>' +
+
+    '<input ' +
+      'id="invoiceTitle" ' +
+      'type="text" ' +
+      'placeholder="Contoh: Yuran Bulanan">' +
+
+
+    '<label>Keterangan</label>' +
+
+    '<textarea ' +
+      'id="invoiceDescription" ' +
+      'rows="3" ' +
+      'placeholder="Contoh: Yuran September 2026">' +
+    '</textarea>' +
+
+
+    '<label>Amaun (RM)</label>' +
+
+    '<input ' +
+      'id="invoiceAmount" ' +
+      'type="number" ' +
+      'min="0.01" ' +
+      'step="0.01" ' +
+      'placeholder="80.00">' +
+
+
+    // ================================================
+    // ROYALTI V30
+    // ================================================
+
+    '<div style="' +
+      'margin-top:16px;' +
+      'padding:14px;' +
+      'border:1px solid #ddd;' +
+      'border-radius:10px;' +
+      'background:#fafafa;' +
+    '">' +
+
+      '<label style="font-weight:600;">Royalti</label>' +
+
+      '<label style="' +
+        'display:flex;' +
+        'align-items:center;' +
+        'gap:8px;' +
+        'margin-top:8px;' +
+      '">' +
+
+        '<input ' +
+          'id="invoiceRoyaltyEnabled" ' +
+          'type="checkbox" ' +
+          'onchange="toggleInvoiceRoyalty()">' +
+
+        '<span>Bayar Royalti untuk invoice ini</span>' +
+
+      '</label>' +
+
+
+      '<div id="invoiceRoyaltyWrap" ' +
+        'style="display:none;margin-top:10px;">' +
+
+        '<label>Amaun Royalti (RM)</label>' +
+
+        '<input ' +
+          'id="invoiceRoyaltyAmount" ' +
+          'type="number" ' +
+          'min="0" ' +
+          'step="0.01" ' +
+          'placeholder="Contoh: 15.00">' +
+
+        '<div class="muted" style="margin-top:5px;">' +
+
+          'Amaun ini hanya digunakan untuk kiraan royalti Admin. ' +
+          'Ia tidak akan dipaparkan kepada parent.' +
+
+        '</div>' +
+
+      '</div>' +
+
+    '</div>' +
+
+
+    '<label>Tarikh Invoice</label>' +
+
+    '<input ' +
+      'id="invoiceDate" ' +
+      'type="date" ' +
+      'value="' +
+        new Date()
+          .toISOString()
+          .slice(0,10) +
+      '">' +
+
+
+    '<label>Tarikh Akhir Bayaran</label>' +
+
+    '<input ' +
+      'id="invoiceDueDate" ' +
+      'type="date">' +
+
+
+    '<div class="modal-actions">' +
+
+      '<button ' +
+        'type="button" ' +
+        'class="btn btn-primary" ' +
+        'onclick="submitManualInvoice()">' +
+
+        'Generate Invoice' +
+
+      '</button>' +
+
+      '<button ' +
+        'type="button" ' +
+        'class="btn btn-light" ' +
+        'onclick="closeModal()">' +
+
+        'Batal' +
+
+      '</button>' +
+
+    '</div>'
+
+  );
+
+}
+
+
+// =====================================================
+// TOGGLE ROYALTY
+// =====================================================
+
+function toggleInvoiceRoyalty() {
+
+  var checkbox =
+    document.getElementById(
+      'invoiceRoyaltyEnabled'
+    );
+
+  var wrap =
+    document.getElementById(
+      'invoiceRoyaltyWrap'
+    );
+
+  var amount =
+    document.getElementById(
+      'invoiceRoyaltyAmount'
+    );
+
+
+  if (!checkbox || !wrap) {
+    return;
+  }
+
+
+  if (checkbox.checked) {
+
+    wrap.style.display = '';
+
+  } else {
+
+    wrap.style.display = 'none';
+
+    if (amount) {
+      amount.value = '';
+    }
+
+  }
+
+}
+
+
+// =====================================================
+// SUBMIT MANUAL INVOICE V30
+// =====================================================
+
+async function submitManualInvoice() {
+
+  var recipientType =
+    document.getElementById(
+      'invoiceRecipientType'
+    ).value;
+
+
+  var parentId =
+    document.getElementById(
+      'invoiceParentId'
+    ).value;
+
+
+  var studentId =
+    document.getElementById(
+      'invoiceStudentId'
+    )
+      ? document.getElementById(
+          'invoiceStudentId'
+        ).value
+      : '';
+
+
+  var title =
+    document.getElementById(
+      'invoiceTitle'
+    ).value.trim();
+
+
+  var description =
+    document.getElementById(
+      'invoiceDescription'
+    ).value.trim();
+
+
+  var amount =
+    document.getElementById(
+      'invoiceAmount'
+    ).value;
+
+
+  var invoiceDate =
+    document.getElementById(
+      'invoiceDate'
+    ).value;
+
+
+  var dueDate =
+    document.getElementById(
+      'invoiceDueDate'
+    ).value;
+
+
+  // ================================================
+  // ROYALTY
+  // ================================================
+
+  var royaltyEnabled =
+    document.getElementById(
+      'invoiceRoyaltyEnabled'
+    )
+      ? document.getElementById(
+          'invoiceRoyaltyEnabled'
+        ).checked
+      : false;
+
+
+  var royaltyAmount =
+    document.getElementById(
+      'invoiceRoyaltyAmount'
+    )
+      ? document.getElementById(
+          'invoiceRoyaltyAmount'
+        ).value
+      : 0;
+
+
+  // ================================================
+  // VALIDATION
+  // ================================================
+
+  if (
+    recipientType === 'SINGLE' &&
+    !parentId
+  ) {
+
+    alert(
+      'Sila pilih parent.'
+    );
+
+    return;
+
+  }
+
+
+  if (
+    recipientType === 'SINGLE' &&
+    !studentId
+  ) {
+
+    alert(
+      'Sila pilih pelajar.'
+    );
+
+    return;
+
+  }
+
+
+  if (!title) {
+
+    alert(
+      'Sila masukkan tajuk invoice.'
+    );
+
+    return;
+
+  }
+
+
+  if (
+    !amount ||
+    Number(amount) <= 0
+  ) {
+
+    alert(
+      'Sila masukkan amaun yang sah.'
+    );
+
+    return;
+
+  }
+
+
+  if (
+    !invoiceDate ||
+    !dueDate
+  ) {
+
+    alert(
+      'Sila lengkapkan tarikh invoice dan tarikh akhir bayaran.'
+    );
+
+    return;
+
+  }
+
+
+  if (
+    dueDate < invoiceDate
+  ) {
+
+    alert(
+      'Tarikh akhir bayaran tidak boleh lebih awal daripada tarikh invoice.'
+    );
+
+    return;
+
+  }
+
+
+  if (
+    royaltyEnabled &&
+    (
+      !royaltyAmount ||
+      Number(royaltyAmount) < 0
+    )
+  ) {
+
+    alert(
+      'Sila masukkan amaun royalti yang sah.'
+    );
+
+    return;
+
+  }
+
+
+  try {
+
+    showLoading(
+      'Menjana invoice...'
+    );
+
+
+    var result =
+      await callApi(
+        'generateManualInvoice',
+        {
+
+          recipientType:
+            recipientType,
+
+          parentId:
+            parentId,
+
+          studentId:
+            studentId,
+
+          title:
+            title,
+
+          description:
+            description,
+
+          amount:
+            Number(amount),
+
+          invoiceDate:
+            invoiceDate,
+
+          dueDate:
+            dueDate,
+
+          // V30
+          royaltyEnabled:
+            royaltyEnabled,
+
+          royaltyAmount:
+            royaltyEnabled
+              ? Number(
+                  royaltyAmount
+                )
+              : 0
+
+        }
+      );
+
+
+    hideLoading();
+
+    closeModal();
+
+
+    alert(
+      result.message ||
+      'Invoice berjaya dijana.'
+    );
+
+
+    await loadAdminDashboard();
+
+
+  } catch (e) {
+
+    hideLoading();
+
+
+    alert(
+      e && e.message
+        ? e.message
+        : 'Invoice gagal dijana.'
+    );
+
+  }
+
+}
 </script>
 
 </body>
