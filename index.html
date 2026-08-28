@@ -3566,7 +3566,7 @@ function editManualInvoiceModal(invoiceId) {
     '<label>Tarikh Akhir Bayaran</label>' +
     '<input id="editInvoiceDueDate" type="date" value="' + escapeHtml(String(invoice.dueDate || '').slice(0, 10)) + '">' +
     '<div class="modal-actions">' +
-      '<button type="button" class="btn btn-primary" onclick="submitEditManualInvoice(\\\'' + escapeHtml(invoice.id || '') + '\\\')">Simpan Perubahan</button>' +
+      '<button type="button" class="btn btn-primary" onclick="submitEditManualInvoice(' + JSON.stringify(invoice.id || '') + ')">Simpan Perubahan</button>' +
       '<button type="button" class="btn btn-light" onclick="closeModal()">Batal</button>' +
     '</div>'
   );
