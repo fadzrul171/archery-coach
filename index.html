@@ -2210,6 +2210,35 @@ async function loadParentDashboard() {
     '</div>';
 
 
+
+
+  /* MANUAL INVOICES */
+  var invoices = parentData.invoices || [];
+  html +=
+    '<div class="panel">' +
+    '<div class="panel-header">' +
+    '<h3>Invoice</h3>' +
+    '<span class="muted">Invoice yang dihantar oleh admin</span>' +
+    '</div>';
+
+  if (invoices.length === 0) {
+    html += '<p class="muted">Tiada invoice.</p>';
+  } else {
+    html += '<div style="overflow-x:auto;"><table>' +
+      '<thead><tr><th>No. Invoice</th><th>Perkara</th><th>Amaun</th><th>Tarikh Akhir</th><th>Status</th></tr></thead><tbody>';
+    invoices.forEach(function(invoice) {
+      html += '<tr>' +
+        '<td><strong>' + escapeHtml(invoice.invoiceNo || '-') + '</strong></td>' +
+        '<td>' + escapeHtml(invoice.title || '-') + (invoice.description ? '<br><span class="muted">' + escapeHtml(invoice.description) + '</span>' : '') + '</td>' +
+        '<td>' + money(invoice.amount) + '</td>' +
+        '<td>' + escapeHtml(formatDateDisplay_(invoice.dueDate)) + '</td>' +
+        '<td>' + statusBadge(invoice.status || 'UNPAID') + '</td>' +
+        '</tr>';
+    });
+    html += '</tbody></table></div>';
+  }
+  html += '</div>';
+
   document.getElementById(
     'dashboardContent'
   ).innerHTML = html;
@@ -3275,6 +3304,34 @@ async function loadAdminDashboard() {
     '</tbody></table></div>';
 
 
+  /* MANUAL INVOICE */
+  html +=
+    '<div class="panel">' +
+    '<div class="panel-header">' +
+    '<div><h3>Manual Invoice</h3><span class="muted">Jana invoice untuk seorang parent atau semua parent yang mempunyai pelajar Active.</span></div>' +
+    '<button type="button" class="btn btn-primary" onclick="generateInvoiceModal()">+ Generate Invoice</button>' +
+    '</div>' +
+    '<div style="overflow-x:auto;"><table>' +
+    '<thead><tr><th>No. Invoice</th><th>Parent</th><th>Perkara</th><th>Amaun</th><th>Tarikh</th><th>Tarikh Akhir</th><th>Status</th></tr></thead><tbody>';
+
+  var adminInvoices = data.invoices || [];
+  if (adminInvoices.length === 0) {
+    html += '<tr><td colspan="7" class="muted">Belum ada invoice manual.</td></tr>';
+  } else {
+    adminInvoices.forEach(function(invoice) {
+      html += '<tr>' +
+        '<td><strong>' + escapeHtml(invoice.invoiceNo || '-') + '</strong></td>' +
+        '<td>' + escapeHtml(invoice.parentName || '-') + '</td>' +
+        '<td>' + escapeHtml(invoice.title || '-') + '</td>' +
+        '<td>' + money(invoice.amount) + '</td>' +
+        '<td>' + escapeHtml(formatDateDisplay_(invoice.invoiceDate)) + '</td>' +
+        '<td>' + escapeHtml(formatDateDisplay_(invoice.dueDate)) + '</td>' +
+        '<td>' + statusBadge(invoice.status || 'UNPAID') + '</td>' +
+        '</tr>';
+    });
+  }
+  html += '</tbody></table></div></div>';
+
   /* PARENT ACCOUNTS */
 
   html +=
@@ -3366,6 +3423,85 @@ async function loadAdminDashboard() {
 
 
   hideLoading();
+}
+
+
+/* ==========================================
+   MANUAL INVOICE
+========================================== */
+
+function generateInvoiceModal() {
+  var parents = (window.adminData && adminData.parents) || [];
+  var options = '<option value="">Pilih parent</option>';
+
+  parents.forEach(function(parent) {
+    options += '<option value="' + escapeHtml(parent.id) + '">' +
+      escapeHtml(parent.fullName || '-') + ' — ' + escapeHtml(parent.phone || parent.email || '') +
+      '</option>';
+  });
+
+  openModal(
+    '<h2>Generate Invoice</h2>' +
+    '<label>Hantar Kepada</label>' +
+    '<select id="invoiceRecipientType" onchange="toggleInvoiceRecipient()">' +
+      '<option value="SINGLE">Single Parent</option>' +
+      '<option value="ALL">All Parents (Active sahaja)</option>' +
+    '</select>' +
+    '<div id="invoiceParentWrap">' +
+      '<label>Parent</label>' +
+      '<select id="invoiceParentId">' + options + '</select>' +
+    '</div>' +
+    '<label>Tajuk Invoice</label>' +
+    '<input id="invoiceTitle" type="text" placeholder="Contoh: Yuran Pendaftaran">' +
+    '<label>Keterangan</label>' +
+    '<textarea id="invoiceDescription" rows="3" placeholder="Contoh: Yuran pendaftaran pelajar"></textarea>' +
+    '<label>Amaun (RM)</label>' +
+    '<input id="invoiceAmount" type="number" min="0.01" step="0.01" placeholder="100.00">' +
+    '<label>Tarikh Invoice</label>' +
+    '<input id="invoiceDate" type="date" value="' + new Date().toISOString().slice(0, 10) + '">' +
+    '<label>Tarikh Akhir Bayaran</label>' +
+    '<input id="invoiceDueDate" type="date">' +
+    '<div class="modal-actions">' +
+      '<button type="button" class="btn btn-primary" onclick="submitManualInvoice()">Generate Invoice</button>' +
+      '<button type="button" class="btn btn-light" onclick="closeModal()">Batal</button>' +
+    '</div>'
+  );
+}
+
+function toggleInvoiceRecipient() {
+  var type = document.getElementById('invoiceRecipientType');
+  var wrap = document.getElementById('invoiceParentWrap');
+  if (type && wrap) wrap.style.display = type.value === 'ALL' ? 'none' : '';
+}
+
+async function submitManualInvoice() {
+  var recipientType = document.getElementById('invoiceRecipientType').value;
+  var parentId = document.getElementById('invoiceParentId').value;
+  var title = document.getElementById('invoiceTitle').value.trim();
+  var description = document.getElementById('invoiceDescription').value.trim();
+  var amount = document.getElementById('invoiceAmount').value;
+  var invoiceDate = document.getElementById('invoiceDate').value;
+  var dueDate = document.getElementById('invoiceDueDate').value;
+
+  if (recipientType === 'SINGLE' && !parentId) { alert('Sila pilih parent.'); return; }
+  if (!title) { alert('Sila masukkan tajuk invoice.'); return; }
+  if (!amount || Number(amount) <= 0) { alert('Sila masukkan amaun yang sah.'); return; }
+  if (!invoiceDate || !dueDate) { alert('Sila lengkapkan tarikh invoice dan tarikh akhir bayaran.'); return; }
+  if (dueDate < invoiceDate) { alert('Tarikh akhir bayaran tidak boleh lebih awal daripada tarikh invoice.'); return; }
+
+  try {
+    showLoading('Menjana invoice...');
+    var result = await callApi('generateManualInvoice', {
+      recipientType: recipientType, parentId: parentId, title: title, description: description,
+      amount: Number(amount), invoiceDate: invoiceDate, dueDate: dueDate
+    });
+    hideLoading(); closeModal();
+    alert(result.message || 'Invoice berjaya dijana.');
+    await loadAdminDashboard();
+  } catch (e) {
+    hideLoading();
+    alert(e && e.message ? e.message : 'Invoice gagal dijana.');
+  }
 }
 
 
