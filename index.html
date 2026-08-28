@@ -2964,6 +2964,8 @@ async function loadAdminDashboard() {
     'loadAdminDashboard();' +
     '">' +
 
+    '<button type="button" class="btn btn-light" onclick="adminSettingsModal()" style="margin-left:10px;">⚙️ Settings</button>' +
+
     '</div>';
 
 
@@ -4403,6 +4405,62 @@ async function saveNewPassword() {
 }
 
 
+
+
+/* ==========================================
+   ADMIN SETTINGS
+========================================== */
+
+function adminSettingsModal() {
+  var settings = (window.adminData && window.adminData.settings) || {};
+
+  openModal(
+    '<h2>⚙️ Settings</h2>' +
+    '<p class="muted">Maklumat ini akan digunakan pada resit yang dijana selepas perubahan disimpan.</p>' +
+    '<label>Nama Syarikat</label>' +
+    '<input id="settingsOperatorName" type="text" value="' + escapeHtml(settings.OPERATOR_NAME || '') + '">' +
+    '<label>Nama Kelab</label>' +
+    '<input id="settingsBusinessName" type="text" value="' + escapeHtml(settings.BUSINESS_NAME || '') + '">' +
+    '<label>No. SSM</label>' +
+    '<input id="settingsBusinessRegNo" type="text" value="' + escapeHtml(settings.BUSINESS_REG_NO || '') + '">' +
+    '<label>Alamat</label>' +
+    '<textarea id="settingsAddress" rows="3">' + escapeHtml(settings.ADDRESS || '') + '</textarea>' +
+    '<label>Emel</label>' +
+    '<input id="settingsEmail" type="email" value="' + escapeHtml(settings.EMAIL || '') + '">' +
+    '<label>No. Contact</label>' +
+    '<input id="settingsPhone" type="tel" value="' + escapeHtml(settings.PHONE || '') + '">' +
+    '<div class="modal-actions">' +
+      '<button type="button" class="btn btn-primary" onclick="saveAdminSettings()">Simpan Settings</button>' +
+      '<button type="button" class="btn btn-light" onclick="closeModal()">Batal</button>' +
+    '</div>'
+  );
+}
+
+async function saveAdminSettings() {
+  var payload = {
+    OPERATOR_NAME: document.getElementById('settingsOperatorName').value.trim(),
+    BUSINESS_NAME: document.getElementById('settingsBusinessName').value.trim(),
+    BUSINESS_REG_NO: document.getElementById('settingsBusinessRegNo').value.trim(),
+    ADDRESS: document.getElementById('settingsAddress').value.trim(),
+    EMAIL: document.getElementById('settingsEmail').value.trim(),
+    PHONE: document.getElementById('settingsPhone').value.trim()
+  };
+
+  if (!payload.OPERATOR_NAME) { alert('Sila masukkan nama syarikat.'); return; }
+  if (!payload.BUSINESS_NAME) { alert('Sila masukkan nama kelab.'); return; }
+  if (payload.EMAIL && !/^\S+@\S+\.\S+$/.test(payload.EMAIL)) { alert('Format emel tidak sah.'); return; }
+
+  try {
+    showLoading('Menyimpan settings...');
+    await callApi('updateSettings', payload);
+    closeModal();
+    alert('Settings berjaya dikemaskini.');
+    await loadAdminDashboard();
+  } catch (e) {
+    hideLoading();
+    alert(e && e.message ? e.message : 'Settings gagal dikemaskini.');
+  }
+}
 
 
 /* ==========================================
