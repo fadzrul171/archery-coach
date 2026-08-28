@@ -2214,30 +2214,35 @@ async function loadParentDashboard() {
 
   /* MANUAL INVOICES */
   var invoices = parentData.invoices || [];
-  html +=
-    '<div class="panel">' +
+  var invoiceHtml = '<div class="panel">' +
     '<div class="panel-header">' +
     '<h3>Invoice</h3>' +
-    '<span class="muted">Invoice yang dihantar oleh admin</span>' +
+    '<span class="muted">Invoice manual mengikut pelajar</span>' +
     '</div>';
-
   if (invoices.length === 0) {
-    html += '<p class="muted">Tiada invoice.</p>';
+    invoiceHtml += '<p class="muted">Tiada invoice.</p>';
   } else {
-    html += '<div style="overflow-x:auto;"><table>' +
-      '<thead><tr><th>No. Invoice</th><th>Perkara</th><th>Amaun</th><th>Tarikh Akhir</th><th>Status</th></tr></thead><tbody>';
+    invoiceHtml += '<div style="overflow-x:auto;"><table>' +
+      '<thead><tr><th>No. Invoice</th><th>Pelajar</th><th>Perkara</th><th>Amaun</th><th>Tarikh Akhir</th><th>Status</th><th>Tindakan</th></tr></thead><tbody>';
     invoices.forEach(function(invoice) {
-      html += '<tr>' +
+      var st = String(invoice.status || 'UNPAID').toUpperCase();
+      var action = st === 'PAID'
+        ? '<span class="muted">Selesai</span>'
+        : '<button type="button" class="btn btn-primary" onclick="paymentModal(\'' + escapeHtml(invoice.studentId || '') + '\',\'' + escapeHtml(invoice.id || '') + '\')">Bayar Invoice</button>';
+      invoiceHtml += '<tr>' +
         '<td><strong>' + escapeHtml(invoice.invoiceNo || '-') + '</strong></td>' +
+        '<td>' + escapeHtml(invoice.studentName || '-') + '</td>' +
         '<td>' + escapeHtml(invoice.title || '-') + (invoice.description ? '<br><span class="muted">' + escapeHtml(invoice.description) + '</span>' : '') + '</td>' +
         '<td>' + money(invoice.amount) + '</td>' +
         '<td>' + escapeHtml(formatDateDisplay_(invoice.dueDate)) + '</td>' +
-        '<td>' + statusBadge(invoice.status || 'UNPAID') + '</td>' +
+        '<td>' + statusBadge(st) + '</td>' +
+        '<td>' + action + '</td>' +
         '</tr>';
     });
-    html += '</tbody></table></div>';
+    invoiceHtml += '</tbody></table></div>';
   }
-  html += '</div>';
+  invoiceHtml += '</div>';
+  html += invoiceHtml;
 
   document.getElementById(
     'dashboardContent'
@@ -2569,7 +2574,7 @@ async function saveStudent() {
    PAYMENT MODAL
 ========================================== */
 
-function paymentModal(studentId) {
+function paymentModal(studentId, invoiceId) {
 
   if (!parentData) {
     return;
@@ -2604,6 +2609,14 @@ function paymentModal(studentId) {
   }
 
 
+  var invoice = null;
+  if (invoiceId) {
+    (parentData.invoices || []).forEach(function(item) {
+      if (item.id === invoiceId) invoice = item;
+    });
+    if (!invoice) { alert('Invoice tidak dijumpai.'); return; }
+  }
+
   var settings =
     parentData.settings || {};
 
@@ -2628,7 +2641,7 @@ function paymentModal(studentId) {
 
   openModal(
 
-    '<h2>Bayar Yuran</h2>' +
+    '<h2>' + (invoice ? 'Bayar Invoice' : 'Bayar Yuran') + '</h2>' +
 
     '<p><strong>' +
     escapeHtml(
@@ -2638,9 +2651,7 @@ function paymentModal(studentId) {
 
 
     '<div class="amount">' +
-    money(
-      settings.monthlyFee
-    ) +
+    money(invoice ? invoice.amount : settings.monthlyFee) +
     '</div>' +
 
 
@@ -2683,17 +2694,16 @@ function paymentModal(studentId) {
     '">' +
 
 
-    '<label>Bulan Yuran</label>' +
+    '<input id="payInvoice" type="hidden" value="' + escapeHtml(invoice ? invoice.id : '') + '">' +
+
 
     '<input ' +
     'id="payMonth" ' +
     'type="month" ' +
     'value="' +
-    escapeHtml(
-      student.currentMonth ||
-      getLocalMonthKey()
-    ) +
-    '">' +
+    escapeHtml(invoice ? String(invoice.invoiceDate || '').slice(0, 7) : (student.currentMonth || getLocalMonthKey())) +
+    '"' + (invoice ? ' disabled' : '') +
+    '>' +
 
 
     '<label>Tarikh Bayaran</label>' +
@@ -2838,6 +2848,9 @@ async function submitPayment() {
           document.getElementById(
             'payStudent'
           ).value,
+
+        invoiceId:
+          (document.getElementById('payInvoice') || {}).value || '',
 
         monthKey:
           document.getElementById(
@@ -3062,6 +3075,14 @@ async function loadAdminDashboard() {
 
 
   html +=
+    '</div>';
+
+
+  html +=
+    '<div class="cards">' +
+    '<div class="card"><small>Invoice Pelajar Dibayar</small><h3>' + Number(summary.invoicePaidStudents || 0) + '</h3></div>' +
+    '<div class="card"><small>Invoice Pelajar Pending</small><h3>' + Number(summary.invoicePendingStudents || 0) + '</h3></div>' +
+    '<div class="card"><small>Invoice Pelajar Belum Bayar</small><h3>' + Number(summary.invoiceUnpaidStudents || 0) + '</h3></div>' +
     '</div>';
 
 
@@ -3312,16 +3333,17 @@ async function loadAdminDashboard() {
     '<button type="button" class="btn btn-primary" onclick="generateInvoiceModal()">+ Generate Invoice</button>' +
     '</div>' +
     '<div style="overflow-x:auto;"><table>' +
-    '<thead><tr><th>No. Invoice</th><th>Parent</th><th>Perkara</th><th>Amaun</th><th>Tarikh</th><th>Tarikh Akhir</th><th>Status</th></tr></thead><tbody>';
+    '<thead><tr><th>No. Invoice</th><th>Parent</th><th>Pelajar</th><th>Perkara</th><th>Amaun</th><th>Tarikh</th><th>Tarikh Akhir</th><th>Status</th></tr></thead><tbody>';
 
   var adminInvoices = data.invoices || [];
   if (adminInvoices.length === 0) {
-    html += '<tr><td colspan="7" class="muted">Belum ada invoice manual.</td></tr>';
+    html += '<tr><td colspan="8" class="muted">Belum ada invoice manual.</td></tr>';
   } else {
     adminInvoices.forEach(function(invoice) {
       html += '<tr>' +
         '<td><strong>' + escapeHtml(invoice.invoiceNo || '-') + '</strong></td>' +
         '<td>' + escapeHtml(invoice.parentName || '-') + '</td>' +
+        '<td>' + escapeHtml(invoice.studentName || '-') + '</td>' +
         '<td>' + escapeHtml(invoice.title || '-') + '</td>' +
         '<td>' + money(invoice.amount) + '</td>' +
         '<td>' + escapeHtml(formatDateDisplay_(invoice.invoiceDate)) + '</td>' +
