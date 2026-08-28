@@ -2893,6 +2893,8 @@ async function loadAdminDashboard() {
     );
 
 
+  window.adminData = data;
+
   var summary =
     data.summary || {};
 
@@ -3221,6 +3223,56 @@ async function loadAdminDashboard() {
     '</tbody>' +
     '</table>' +
     '</div>';
+
+
+  /* REGISTERED STUDENTS */
+
+  html +=
+    '<div class="panel">' +
+    '<div class="panel-header">' +
+    '<h3>Pelajar Berdaftar</h3>' +
+    '<span class="muted">Pengurusan status & maklumat pelajar</span>' +
+    '</div>' +
+    '<input ' +
+    'type="search" ' +
+    'placeholder="Cari nama pelajar / parent / sekolah..." ' +
+    'oninput="filterAdminStudentTable(this.value)">' +
+    '<table id="adminStudentTable">' +
+    '<thead><tr>' +
+    '<th>Nama Pelajar</th>' +
+    '<th>Parent</th>' +
+    '<th>Sekolah</th>' +
+    '<th>Tarikh Mula</th>' +
+    '<th>Status</th>' +
+    '<th>Tindakan</th>' +
+    '</tr></thead><tbody>';
+
+  var students = data.students || [];
+
+  students.forEach(function(student) {
+    var isActive = String(student.status || '').toUpperCase() === 'ACTIVE';
+    var statusHtml = isActive
+      ? '<span class="badge paid">ACTIVE</span>'
+      : '<span class="badge rejected">INACTIVE</span>';
+
+    html +=
+      '<tr>' +
+      '<td>' + escapeHtml(student.fullName || '') + '</td>' +
+      '<td>' + escapeHtml(student.parentName || '') + '</td>' +
+      '<td>' + escapeHtml(student.school || '-') + '</td>' +
+      '<td>' + escapeHtml(formatDateDisplay_(student.startDate)) + '</td>' +
+      '<td>' + statusHtml + '</td>' +
+      '<td>' +
+        '<button type="button" class="btn btn-light" onclick="adminStudentDetails(\'' + escapeHtml(student.id) + '\')">Details</button> ' +
+        '<button type="button" class="btn ' + (isActive ? 'btn-danger' : 'btn-success') + '" onclick="toggleStudentStatus(\'' + escapeHtml(student.id) + '\',\'' + (isActive ? 'INACTIVE' : 'ACTIVE') + '\')">' +
+          (isActive ? 'Inactive' : 'Aktif') +
+        '</button>' +
+      '</td>' +
+      '</tr>';
+  });
+
+  html +=
+    '</tbody></table></div>';
 
 
   /* PARENT ACCOUNTS */
@@ -4091,6 +4143,119 @@ function modalBackgroundClick(
     closeModal();
 
   }
+}
+
+
+/* ==========================================
+   ADMIN STUDENT MANAGEMENT
+========================================== */
+
+function formatDateDisplay_(value) {
+  if (!value) return '-';
+  var s = String(value);
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) {
+    var p = s.substring(0, 10).split('-');
+    return p[2] + '/' + p[1] + '/' + p[0];
+  }
+  var d = new Date(s);
+  if (isNaN(d.getTime())) return s;
+  return String(d.getDate()).padStart(2, '0') + '/' +
+    String(d.getMonth() + 1).padStart(2, '0') + '/' +
+    d.getFullYear();
+}
+
+
+function getAdminStudentById(studentId) {
+  if (!window.adminData || !adminData.students) return null;
+  return adminData.students.find(function(student) {
+    return student.id === studentId;
+  }) || null;
+}
+
+
+function adminStudentDetails(studentId) {
+  var student = getAdminStudentById(studentId);
+
+  if (!student) {
+    alert('Pelajar tidak dijumpai.');
+    return;
+  }
+
+  var isActive = String(student.status || '').toUpperCase() === 'ACTIVE';
+
+  openModal(
+    '<h2>Details Pelajar</h2>' +
+    '<p><strong>Nama:</strong> ' + escapeHtml(student.fullName || '-') + '</p>' +
+    '<p><strong>Tarikh Lahir:</strong> ' + escapeHtml(formatDateDisplay_(student.dob)) + '</p>' +
+    '<p><strong>Jantina:</strong> ' + escapeHtml(student.gender || '-') + '</p>' +
+    '<p><strong>MyKid / IC:</strong> ' + escapeHtml(student.mykid || '-') + '</p>' +
+    '<p><strong>Sekolah:</strong> ' + escapeHtml(student.school || '-') + '</p>' +
+    '<p><strong>Tarikh Mula Coaching:</strong> ' + escapeHtml(formatDateDisplay_(student.startDate)) + '</p>' +
+    '<hr>' +
+    '<h3>Maklumat Parent</h3>' +
+    '<p><strong>Nama:</strong> ' + escapeHtml(student.parentName || '-') + '</p>' +
+    '<p><strong>Telefon:</strong> ' + escapeHtml(student.parentPhone || '-') + '</p>' +
+    '<p><strong>Email:</strong> ' + escapeHtml(student.parentEmail || '-') + '</p>' +
+    '<p><strong>Status:</strong> ' + (isActive ? '<span class="badge paid">ACTIVE</span>' : '<span class="badge rejected">INACTIVE</span>') + '</p>' +
+    '<hr>' +
+    '<label>Nota Admin <span class="muted">(Admin sahaja)</span></label>' +
+    '<textarea id="adminStudentNote" rows="5" placeholder="Tulis nota dalaman untuk pelajar ini...">' + escapeHtml(student.adminNote || '') + '</textarea>' +
+    '<div class="modal-actions">' +
+    '<button type="button" class="btn btn-primary" onclick="saveAdminStudentNote(\'' + escapeHtml(student.id) + '\')">Simpan Nota</button>' +
+    '<button type="button" class="btn btn-light" onclick="closeModal()">Tutup</button>' +
+    '</div>'
+  );
+}
+
+
+async function saveAdminStudentNote(studentId) {
+  var noteEl = document.getElementById('adminStudentNote');
+  var note = noteEl ? noteEl.value.trim() : '';
+
+  try {
+    showLoading('Menyimpan nota admin...');
+    await callApi('updateStudentAdminNote', {
+      studentId: studentId,
+      adminNote: note
+    });
+    closeModal();
+    await loadAdminDashboard();
+    alert('Nota admin berjaya disimpan.');
+  } catch (e) {
+    hideLoading();
+    alert(e && e.message ? e.message : 'Nota admin gagal disimpan.');
+  }
+}
+
+
+async function toggleStudentStatus(studentId, newStatus) {
+  var label = newStatus === 'ACTIVE' ? 'aktifkan' : 'nyahaktifkan';
+
+  if (!confirm('Anda pasti mahu ' + label + ' pelajar ini?')) return;
+
+  try {
+    showLoading('Mengemaskini status pelajar...');
+    await callApi('updateStudentStatus', {
+      studentId: studentId,
+      status: newStatus
+    });
+    await loadAdminDashboard();
+    alert(newStatus === 'ACTIVE' ? 'Pelajar telah diaktifkan.' : 'Pelajar telah dinyahaktifkan.');
+  } catch (e) {
+    hideLoading();
+    alert(e && e.message ? e.message : 'Status pelajar gagal dikemaskini.');
+  }
+}
+
+
+function filterAdminStudentTable(value) {
+  var table = document.getElementById('adminStudentTable');
+  if (!table) return;
+
+  var query = String(value || '').toLowerCase();
+  table.querySelectorAll('tbody tr').forEach(function(row) {
+    row.style.display = row.textContent.toLowerCase().indexOf(query) >= 0 ? '' : 'none';
+  });
 }
 
 
