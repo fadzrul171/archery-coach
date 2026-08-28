@@ -1,4 +1,4 @@
-
+<!DOCTYPE html>
 <html>
 
 <head>
@@ -1932,7 +1932,7 @@ async function loadParentDashboard() {
 
   html +=
     '<div class="panel-header">' +
-    '<h3>Pelajar Saya</h3>' +
+    '<h3>Pelajar Berdaftar</h3>' +
     '<button type="button" ' +
     'class="btn btn-primary" ' +
     'onclick="addStudentModal()">' +
@@ -1969,7 +1969,14 @@ async function loadParentDashboard() {
     students.forEach(
       function(student) {
 
-        var action = '';
+        var action =
+          '<button type="button" ' +
+          'class="btn btn-light" ' +
+          'onclick="editStudentModal(\'' +
+          escapeHtml(student.id) +
+          '\')">' +
+          'Edit' +
+          '</button>';
 
 
         if (
@@ -1977,8 +1984,8 @@ async function loadParentDashboard() {
           'UNPAID'
         ) {
 
-          action =
-            '<button type="button" ' +
+          action +=
+            ' <button type="button" ' +
             'class="btn btn-primary" ' +
             'onclick="paymentModal(\'' +
             escapeHtml(student.id) +
@@ -1994,8 +2001,8 @@ async function loadParentDashboard() {
           'PENDING'
         ) {
 
-          action =
-            '<span class="muted">' +
+          action +=
+            ' <span class="muted">' +
             'Menunggu semakan admin' +
             '</span>';
 
@@ -2006,8 +2013,8 @@ async function loadParentDashboard() {
           student.receiptAvailable
         ) {
 
-          action =
-            '<button type="button" ' +
+          action +=
+            ' <button type="button" ' +
             'class="btn btn-light" ' +
             'onclick="downloadReceipt(\'' +
             escapeHtml(
@@ -2209,6 +2216,114 @@ async function loadParentDashboard() {
 
 
   hideLoading();
+}
+
+
+/* ==========================================
+   EDIT STUDENT
+========================================== */
+
+function editStudentModal(studentId) {
+
+  if (!parentData || !parentData.students) return;
+
+  var student = parentData.students.find(function(item) {
+    return item.id === studentId;
+  });
+
+  if (!student) {
+    alert('Pelajar tidak dijumpai.');
+    return;
+  }
+
+  openModal(
+    '<h2>Edit Profile Pelajar</h2>' +
+
+    '<label>Nama Penuh Pelajar</label>' +
+    '<input id="editStudentName" type="text" value="' +
+    escapeHtmlAttr_(student.fullName || '') +
+    '">' +
+
+    '<label>Tarikh Lahir</label>' +
+    '<input id="editStudentDob" type="date" value="' +
+    escapeHtmlAttr_(formatDateInput_(student.dob)) +
+    '">' +
+
+    '<label>Jantina</label>' +
+    '<select id="editStudentGender">' +
+    '<option value="">Pilih</option>' +
+    '<option value="Lelaki" ' + (student.gender === 'Lelaki' ? 'selected' : '') + '>Lelaki</option>' +
+    '<option value="Perempuan" ' + (student.gender === 'Perempuan' ? 'selected' : '') + '>Perempuan</option>' +
+    '</select>' +
+
+    '<label>No. MyKid / IC</label>' +
+    '<input id="editStudentMykid" type="text" value="' +
+    escapeHtmlAttr_(student.mykid || '') +
+    '">' +
+
+    '<label>Sekolah</label>' +
+    '<input id="editStudentSchool" type="text" value="' +
+    escapeHtmlAttr_(student.school || '') +
+    '">' +
+
+    '<label>Tarikh Mula Coaching</label>' +
+    '<input type="date" value="' +
+    escapeHtmlAttr_(formatDateInput_(student.startDate)) +
+    '" disabled>' +
+    '<p class="muted">Tarikh mula coaching ditetapkan oleh admin dan tidak boleh diubah oleh parent.</p>' +
+
+    '<div class="modal-actions">' +
+    '<button type="button" class="btn btn-primary" onclick="saveStudentProfile(\'' +
+    escapeHtml(student.id) +
+    '\')">Simpan Perubahan</button>' +
+    '<button type="button" class="btn btn-light" onclick="closeModal()">Batal</button>' +
+    '</div>'
+  );
+}
+
+function formatDateInput_(value) {
+  if (!value) return '';
+  var s = String(value);
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.substring(0, 10);
+  var d = new Date(s);
+  if (isNaN(d.getTime())) return '';
+  return d.getFullYear() + '-' +
+    String(d.getMonth() + 1).padStart(2, '0') + '-' +
+    String(d.getDate()).padStart(2, '0');
+}
+
+async function saveStudentProfile(studentId) {
+
+  var fullName = document.getElementById('editStudentName').value.trim();
+  var dob = document.getElementById('editStudentDob').value;
+  var gender = document.getElementById('editStudentGender').value;
+  var mykid = document.getElementById('editStudentMykid').value.trim();
+  var school = document.getElementById('editStudentSchool').value.trim();
+
+  if (!fullName) return alert('Sila masukkan nama pelajar.');
+  if (!dob) return alert('Sila pilih tarikh lahir pelajar.');
+  if (!gender) return alert('Sila pilih jantina pelajar.');
+  if (!mykid) return alert('Sila masukkan No. MyKid / IC pelajar.');
+
+  try {
+    showLoading('Menyimpan profile pelajar...');
+
+    await callApi('updateStudent', {
+      studentId: studentId,
+      fullName: fullName,
+      dob: dob,
+      gender: gender,
+      mykid: mykid,
+      school: school
+    });
+
+    closeModal();
+    await loadParentDashboard();
+    alert('Profile pelajar berjaya dikemaskini.');
+  } catch (e) {
+    hideLoading();
+    alert(e && e.message ? e.message : 'Profile pelajar tidak dapat dikemaskini.');
+  }
 }
 
 
@@ -2562,7 +2677,7 @@ function paymentModal(studentId) {
     '">' +
 
 
-    '<label>Bank / Kaedah Bayaran</label>' +
+    '<label>Bank / Kaedah Bayaran <span style="color:#c00">*</span></label>' +
 
     '<input ' +
     'id="payBank" ' +
@@ -2613,6 +2728,15 @@ function paymentModal(studentId) {
 ========================================== */
 
 async function submitPayment() {
+
+  var bankInput = document.getElementById('payBank');
+  var bank = bankInput ? bankInput.value.trim() : '';
+
+  if (!bank) {
+    alert('Sila masukkan Bank / Kaedah Bayaran.');
+    if (bankInput) bankInput.focus();
+    return;
+  }
 
   var fileInput =
     document.getElementById(
@@ -2696,10 +2820,7 @@ async function submitPayment() {
             'payDate'
           ).value,
 
-        bank:
-          document.getElementById(
-            'payBank'
-          ).value.trim(),
+        bank: bank,
 
         referenceNo:
           reference,
