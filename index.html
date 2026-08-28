@@ -2965,6 +2965,7 @@ async function loadAdminDashboard() {
     '">' +
 
     '<button type="button" class="btn btn-light" onclick="adminSettingsModal()" style="margin-left:10px;">⚙️ Settings</button>' +
+    '<button type="button" class="btn btn-danger" onclick="resetProductionData()" style="margin-left:10px;">🧹 Reset Production</button>' +
 
     '</div>';
 
@@ -4434,6 +4435,32 @@ function adminSettingsModal() {
       '<button type="button" class="btn btn-light" onclick="closeModal()">Batal</button>' +
     '</div>'
   );
+}
+
+async function resetProductionData() {
+  var firstConfirm = confirm(
+    'AMARAN: Fungsi ini akan memadam semua data Parent, Pelajar, Payment, Invoice, Session dan Royalti.\n\nAdmin dan Settings akan dikekalkan.\n\nTeruskan?'
+  );
+  if (!firstConfirm) return;
+
+  var secondConfirm = confirm(
+    'Pengesahan terakhir.\n\nSemua DATA TEST akan dikosongkan dan tindakan ini tidak boleh diundur dari sistem asal.\n\nAnda sudah membuat BACKUP? Klik OK untuk teruskan.'
+  );
+  if (!secondConfirm) return;
+
+  try {
+    showLoading('Mereset data production...');
+    var result = await callApi('resetProductionData', {});
+    hideLoading();
+    alert(
+      (result && result.message ? result.message : 'Production reset berjaya.') +
+      '\n\nAdmin: dikekalkan\nSettings: dikekalkan'
+    );
+    await loadAdminDashboard();
+  } catch (e) {
+    hideLoading();
+    alert(e && e.message ? e.message : 'Production reset gagal.');
+  }
 }
 
 async function saveAdminSettings() {
