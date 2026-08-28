@@ -1957,7 +1957,7 @@ async function loadParentDashboard() {
       '<thead>' +
       '<tr>' +
       '<th>Nama Pelajar</th>' +
-      '<th>Bulan</th>' +
+      '<th>Bulan Invoice</th>' +
       '<th>Yuran</th>' +
       '<th>Status</th>' +
       '<th>Tindakan</th>' +
@@ -2975,7 +2975,7 @@ async function loadAdminDashboard() {
 
   html +=
     '<div class="card">' +
-    '<small>Pelajar Aktif</small>' +
+    '<small>Pelajar Diinvoice</small>' +
     '<h3>' +
     Number(
       summary.activeStudents ||
@@ -3333,11 +3333,11 @@ async function loadAdminDashboard() {
     '<button type="button" class="btn btn-primary" onclick="generateInvoiceModal()">+ Generate Invoice</button>' +
     '</div>' +
     '<div style="overflow-x:auto;"><table>' +
-    '<thead><tr><th>No. Invoice</th><th>Parent</th><th>Pelajar</th><th>Perkara</th><th>Amaun</th><th>Tarikh</th><th>Tarikh Akhir</th><th>Status</th></tr></thead><tbody>';
+    '<thead><tr><th>No. Invoice</th><th>Parent</th><th>Pelajar</th><th>Perkara</th><th>Amaun</th><th>Tarikh</th><th>Tarikh Akhir</th><th>Status</th><th>Tindakan</th></tr></thead><tbody>';
 
   var adminInvoices = data.invoices || [];
   if (adminInvoices.length === 0) {
-    html += '<tr><td colspan="8" class="muted">Belum ada invoice manual.</td></tr>';
+    html += '<tr><td colspan="9" class="muted">Belum ada invoice manual.</td></tr>';
   } else {
     adminInvoices.forEach(function(invoice) {
       html += '<tr>' +
@@ -3349,6 +3349,10 @@ async function loadAdminDashboard() {
         '<td>' + escapeHtml(formatDateDisplay_(invoice.invoiceDate)) + '</td>' +
         '<td>' + escapeHtml(formatDateDisplay_(invoice.dueDate)) + '</td>' +
         '<td>' + statusBadge(invoice.status || 'UNPAID') + '</td>' +
+        '<td>' +
+          '<button type="button" class="btn btn-light" onclick="editManualInvoiceModal(\'' + escapeHtml(invoice.id || '') + '\')">Edit</button> ' +
+          '<button type="button" class="btn btn-danger" onclick="deleteManualInvoice(\'' + escapeHtml(invoice.id || '') + '\')">Delete</button>' +
+        '</td>' +
         '</tr>';
     });
   }
@@ -3471,7 +3475,12 @@ function generateInvoiceModal() {
     '</select>' +
     '<div id="invoiceParentWrap">' +
       '<label>Parent</label>' +
-      '<select id="invoiceParentId">' + options + '</select>' +
+      '<select id="invoiceParentId" onchange="loadInvoiceStudentsForParent()">' + options + '</select>' +
+      '<label>Pelajar</label>' +
+      '<select id="invoiceStudentId">' +
+        '<option value="">Pilih pelajar</option>' +
+      '</select>' +
+      '<div class="muted" style="margin-top:6px;">Invoice akan dihantar atas nama pelajar yang dipilih.</div>' +
     '</div>' +
     '<label>Tajuk Invoice</label>' +
     '<input id="invoiceTitle" type="text" placeholder="Contoh: Yuran Pendaftaran">' +
@@ -3493,12 +3502,152 @@ function generateInvoiceModal() {
 function toggleInvoiceRecipient() {
   var type = document.getElementById('invoiceRecipientType');
   var wrap = document.getElementById('invoiceParentWrap');
+  var studentSelect = document.getElementById('invoiceStudentId');
   if (type && wrap) wrap.style.display = type.value === 'ALL' ? 'none' : '';
+  if (type && type.value === 'ALL' && studentSelect) {
+    studentSelect.value = '';
+  }
 }
+
+function loadInvoiceStudentsForParent() {
+  var parentSelect = document.getElementById('invoiceParentId');
+  var studentSelect = document.getElementById('invoiceStudentId');
+  if (!parentSelect || !studentSelect) return;
+
+  var parentId = parentSelect.value;
+  studentSelect.innerHTML = '<option value="">Pilih pelajar</option>';
+
+  if (!parentId) return;
+
+  var students = (window.adminData && adminData.students) || [];
+  students
+    .filter(function(student) {
+      return student.parentId === parentId &&
+        String(student.status || '').toUpperCase() === 'ACTIVE';
+    })
+    .forEach(function(student) {
+      studentSelect.innerHTML +=
+        '<option value="' + escapeHtml(student.id) + '">' +
+        escapeHtml(student.fullName || '-') +
+        '</option>';
+    });
+}
+
+
+function editManualInvoiceModal(invoiceId) {
+  var invoice = null;
+  var invoices = (window.adminData && adminData.invoices) || [];
+  invoices.forEach(function(item) {
+    if (item.id === invoiceId) invoice = item;
+  });
+
+  if (!invoice) {
+    alert('Invoice tidak dijumpai.');
+    return;
+  }
+
+  var status = String(invoice.status || 'UNPAID').toUpperCase();
+  if (status === 'PAID' || status === 'PENDING') {
+    alert('Invoice yang sudah dibayar atau sedang menunggu semakan tidak boleh diedit.');
+    return;
+  }
+
+  openModal(
+    '<h2>Edit Invoice</h2>' +
+    '<p class="muted"><strong>' + escapeHtml(invoice.invoiceNo || '-') + '</strong> · ' + escapeHtml(invoice.studentName || '-') + '</p>' +
+    '<label>Tajuk Invoice</label>' +
+    '<input id="editInvoiceTitle" type="text" value="' + escapeHtml(invoice.title || '') + '">' +
+    '<label>Keterangan</label>' +
+    '<textarea id="editInvoiceDescription" rows="3">' + escapeHtml(invoice.description || '') + '</textarea>' +
+    '<label>Amaun (RM)</label>' +
+    '<input id="editInvoiceAmount" type="number" min="0.01" step="0.01" value="' + escapeHtml(String(invoice.amount || '')) + '">' +
+    '<label>Tarikh Invoice</label>' +
+    '<input id="editInvoiceDate" type="date" value="' + escapeHtml(String(invoice.invoiceDate || '').slice(0, 10)) + '">' +
+    '<label>Tarikh Akhir Bayaran</label>' +
+    '<input id="editInvoiceDueDate" type="date" value="' + escapeHtml(String(invoice.dueDate || '').slice(0, 10)) + '">' +
+    '<div class="modal-actions">' +
+      '<button type="button" class="btn btn-primary" onclick="submitEditManualInvoice(\\\'' + escapeHtml(invoice.id || '') + '\\\')">Simpan Perubahan</button>' +
+      '<button type="button" class="btn btn-light" onclick="closeModal()">Batal</button>' +
+    '</div>'
+  );
+}
+
+async function submitEditManualInvoice(invoiceId) {
+  var title = document.getElementById('editInvoiceTitle').value.trim();
+  var description = document.getElementById('editInvoiceDescription').value.trim();
+  var amount = document.getElementById('editInvoiceAmount').value;
+  var invoiceDate = document.getElementById('editInvoiceDate').value;
+  var dueDate = document.getElementById('editInvoiceDueDate').value;
+
+  if (!title) { alert('Sila masukkan tajuk invoice.'); return; }
+  if (!amount || Number(amount) <= 0) { alert('Sila masukkan amaun yang sah.'); return; }
+  if (!invoiceDate || !dueDate) { alert('Sila lengkapkan tarikh invoice dan tarikh akhir bayaran.'); return; }
+  if (dueDate < invoiceDate) { alert('Tarikh akhir bayaran tidak boleh lebih awal daripada tarikh invoice.'); return; }
+
+  try {
+    showLoading('Mengemaskini invoice...');
+    var result = await callApi('updateManualInvoice', {
+      invoiceId: invoiceId,
+      title: title,
+      description: description,
+      amount: Number(amount),
+      invoiceDate: invoiceDate,
+      dueDate: dueDate
+    });
+    hideLoading();
+    closeModal();
+    alert(result.message || 'Invoice berjaya dikemaskini.');
+    await loadAdminDashboard();
+  } catch (e) {
+    hideLoading();
+    alert(e && e.message ? e.message : 'Invoice gagal dikemaskini.');
+  }
+}
+
+async function deleteManualInvoice(invoiceId) {
+  var invoice = null;
+  var invoices = (window.adminData && adminData.invoices) || [];
+  invoices.forEach(function(item) {
+    if (item.id === invoiceId) invoice = item;
+  });
+
+  if (!invoice) {
+    alert('Invoice tidak dijumpai.');
+    return;
+  }
+
+  var status = String(invoice.status || 'UNPAID').toUpperCase();
+  if (status === 'PAID' || status === 'PENDING') {
+    alert('Invoice yang sudah dibayar atau sedang menunggu semakan tidak boleh dipadam.');
+    return;
+  }
+
+  var confirmed = confirm(
+    'Padam invoice ' + (invoice.invoiceNo || '') + '?\\n\\n' +
+    'Pelajar: ' + (invoice.studentName || '-') + '\\n' +
+    'Amaun: ' + money(invoice.amount) + '\\n\\n' +
+    'Tindakan ini tidak boleh dibuat semula.'
+  );
+
+  if (!confirmed) return;
+
+  try {
+    showLoading('Memadam invoice...');
+    var result = await callApi('deleteManualInvoice', { invoiceId: invoiceId });
+    hideLoading();
+    alert(result.message || 'Invoice berjaya dipadam.');
+    await loadAdminDashboard();
+  } catch (e) {
+    hideLoading();
+    alert(e && e.message ? e.message : 'Invoice gagal dipadam.');
+  }
+}
+
 
 async function submitManualInvoice() {
   var recipientType = document.getElementById('invoiceRecipientType').value;
   var parentId = document.getElementById('invoiceParentId').value;
+  var studentId = document.getElementById('invoiceStudentId') ? document.getElementById('invoiceStudentId').value : '';
   var title = document.getElementById('invoiceTitle').value.trim();
   var description = document.getElementById('invoiceDescription').value.trim();
   var amount = document.getElementById('invoiceAmount').value;
@@ -3506,6 +3655,7 @@ async function submitManualInvoice() {
   var dueDate = document.getElementById('invoiceDueDate').value;
 
   if (recipientType === 'SINGLE' && !parentId) { alert('Sila pilih parent.'); return; }
+  if (recipientType === 'SINGLE' && !studentId) { alert('Sila pilih pelajar.'); return; }
   if (!title) { alert('Sila masukkan tajuk invoice.'); return; }
   if (!amount || Number(amount) <= 0) { alert('Sila masukkan amaun yang sah.'); return; }
   if (!invoiceDate || !dueDate) { alert('Sila lengkapkan tarikh invoice dan tarikh akhir bayaran.'); return; }
@@ -3514,7 +3664,7 @@ async function submitManualInvoice() {
   try {
     showLoading('Menjana invoice...');
     var result = await callApi('generateManualInvoice', {
-      recipientType: recipientType, parentId: parentId, title: title, description: description,
+      recipientType: recipientType, parentId: parentId, studentId: studentId, title: title, description: description,
       amount: Number(amount), invoiceDate: invoiceDate, dueDate: dueDate
     });
     hideLoading(); closeModal();
