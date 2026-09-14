@@ -3354,6 +3354,14 @@ async function loadAdminDashboard() {
         '<td>' + statusBadge(invoice.status || 'UNPAID') + '</td>' +
         '<td>' +
           '<button type="button" class="btn btn-light" onclick="editManualInvoiceModal(\'' + escapeHtml(invoice.id || '') + '\')">Edit</button> ' +
+          ((String(invoice.status || 'UNPAID').toUpperCase() === 'UNPAID' || String(invoice.status || '').toUpperCase() === 'REJECTED')
+            ? '<button type="button" class="btn btn-success" onclick="adminRecordPaymentModal(\'' + escapeHtml(invoice.id || '') + '\')">💳 Rekod Pembayaran</button> ' +
+              ''
+            : '') +
+          (String(invoice.status || '').toUpperCase() === 'PAID'
+            ? '<button type="button" class="btn btn-light" onclick="downloadPaymentReceiptByInvoice(\'' + escapeHtml(invoice.id || '') + '\')">Resit</button> ' +
+              ''
+            : '') +
           '<button type="button" class="btn btn-danger" onclick="deleteManualInvoice(\'' + escapeHtml(invoice.id || '') + '\')">Delete</button>' +
         '</td>' +
         '</tr>';
@@ -3607,6 +3615,181 @@ async function deleteManualInvoice(invoiceId) {
 
 
 async 
+
+
+/* ==========================================
+   ADMIN RECORD PAYMENT MANUALLY
+========================================== */
+
+function adminRecordPaymentModal(invoiceId) {
+
+  var invoice = null;
+  var invoices = (window.adminData && adminData.invoices) || [];
+
+  invoices.forEach(function(item) {
+    if (item.id === invoiceId) invoice = item;
+  });
+
+  if (!invoice) {
+    alert('Invoice tidak dijumpai.');
+    return;
+  }
+
+  var status = String(invoice.status || 'UNPAID').toUpperCase();
+  if (status !== 'UNPAID' && status !== 'REJECTED') {
+    alert('Invoice ini tidak boleh direkodkan sebagai bayaran manual.');
+    return;
+  }
+
+  var today = new Date();
+  var yyyy = today.getFullYear();
+  var mm = String(today.getMonth() + 1).padStart(2, '0');
+  var dd = String(today.getDate()).padStart(2, '0');
+  var todayValue = yyyy + '-' + mm + '-' + dd;
+
+  openModal(
+    '<h2>Rekod Pembayaran Manual</h2>' +
+    '<p class="muted"><strong>' + escapeHtml(invoice.invoiceNo || '-') + '</strong> · ' + escapeHtml(invoice.studentName || '-') + '</p>' +
+    '<div class="card" style="margin-bottom:15px;">' +
+      '<div><small>Parent</small><strong style="display:block;">' + escapeHtml(invoice.parentName || '-') + '</strong></div>' +
+      '<div style="margin-top:8px;"><small>Pelajar</small><strong style="display:block;">' + escapeHtml(invoice.studentName || '-') + '</strong></div>' +
+      '<div style="margin-top:8px;"><small>Amaun Invoice</small><strong style="display:block;font-size:20px;">' + money(invoice.amount) + '</strong></div>' +
+    '</div>' +
+    '<label>Tarikh Bayaran</label>' +
+    '<input id="adminPayDate" type="date" value="' + todayValue + '">' +
+    '<label>Bank / Kaedah Bayaran</label>' +
+    '<input id="adminPayBank" type="text" placeholder="Contoh: Maybank / CIMB / Cash / Transfer" autocomplete="off">' +
+    '<label>No. Rujukan Transaksi</label>' +
+    '<input id="adminPayReference" type="text" placeholder="Masukkan no. rujukan" autocomplete="off">' +
+    '<label>Bukti Pembayaran</label>' +
+    '<input id="adminPayProof" type="file" accept="image/*,.pdf">' +
+    '<p class="muted" style="margin-top:6px;">Upload screenshot / gambar / PDF bukti pembayaran.</p>' +
+    '<div class="modal-actions">' +
+      '<button type="button" class="btn btn-success" onclick="submitAdminRecordPayment(decodeURIComponent(\'' + encodeURIComponent(invoice.id || '') + '\'))">Simpan & Tandakan PAID</button>' +
+      '<button type="button" class="btn btn-light" onclick="closeModal()">Batal</button>' +
+    '</div>'
+  );
+}
+
+
+async function submitAdminRecordPayment(invoiceId) {
+
+  var paidDateEl = document.getElementById('adminPayDate');
+  var bankEl = document.getElementById('adminPayBank');
+  var referenceEl = document.getElementById('adminPayReference');
+  var proofEl = document.getElementById('adminPayProof');
+
+  if (!paidDateEl || !bankEl || !referenceEl || !proofEl) {
+    alert('Borang pembayaran tidak lengkap.');
+    return;
+  }
+
+  var paidDate = paidDateEl.value;
+  var bank = bankEl.value.trim();
+  var referenceNo = referenceEl.value.trim();
+  var file = proofEl.files && proofEl.files[0];
+
+  if (!paidDate) {
+    alert('Sila pilih tarikh bayaran.');
+    return;
+  }
+
+  if (!bank) {
+    alert('Sila masukkan bank / kaedah bayaran.');
+    return;
+  }
+
+  if (!referenceNo) {
+    alert('Sila masukkan no. rujukan transaksi.');
+    return;
+  }
+
+  if (!file) {
+    alert('Sila upload bukti pembayaran.');
+    return;
+  }
+
+  if (file.size > 10 * 1024 * 1024) {
+    alert('Saiz bukti pembayaran terlalu besar. Maksimum 10MB.');
+    return;
+  }
+
+  var confirmed = confirm(
+    'Sahkan bayaran manual ini?\n\n' +
+    'Invoice: ' + invoiceId + '\n' +
+    'Tarikh: ' + paidDate + '\n' +
+    'Bank / Kaedah: ' + bank + '\n' +
+    'Rujukan: ' + referenceNo + '\n\n' +
+    'Invoice akan terus ditandakan sebagai PAID dan resit akan dijana.'
+  );
+
+  if (!confirmed) return;
+
+  try {
+
+    showLoading('Menyimpan bayaran dan menjana resit...');
+
+    var dataUrl = await readFile(file);
+
+    var result = await callApi('adminRecordPayment', {
+      invoiceId: invoiceId,
+      paidDate: paidDate,
+      bank: bank,
+      referenceNo: referenceNo,
+      proof: {
+        name: file.name,
+        mimeType: file.type,
+        data: dataUrl
+      }
+    });
+
+    hideLoading();
+    closeModal();
+
+    alert(
+      (result.message || 'Bayaran berjaya direkodkan.') +
+      '\n\nNo. Resit: ' + (result.receiptNo || '-')
+    );
+
+    await loadAdminDashboard();
+
+  } catch (e) {
+    hideLoading();
+    alert(e && e.message ? e.message : 'Bayaran manual gagal direkodkan.');
+  }
+}
+
+
+function downloadPaymentReceiptByInvoice(invoiceId) {
+
+  var invoice = null;
+  var invoices = (window.adminData && adminData.invoices) || [];
+
+  invoices.forEach(function(item) {
+    if (item.id === invoiceId) invoice = item;
+  });
+
+  if (!invoice) {
+    alert('Invoice tidak dijumpai.');
+    return;
+  }
+
+  var payments = (window.adminData && adminData.payments) || [];
+  var payment = null;
+
+  payments.forEach(function(item) {
+    if (item.invoiceId === invoiceId && String(item.status || '').toUpperCase() === 'PAID') {
+      payment = item;
+    }
+  });
+
+  if (!payment) {
+    alert('Rekod pembayaran untuk invoice ini tidak dijumpai.');
+    return;
+  }
+
+  downloadReceipt(payment.id);
+}
 
 
 /* ==========================================
